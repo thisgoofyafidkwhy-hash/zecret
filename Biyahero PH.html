@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="fil">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Biyahero PH – Real-time commuter board</title>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#fbf6e9; --surface:#ffffff; --ink:#14213d; --muted:#5b647a; --line:#e4dcc6;
+  --accent:#f2b705; --accent-ink:#14213d; --ok:#1d7a4d; --warn:#b85c00; --bad:#b3261e;
+  --chip:#f1ead3;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1830; --surface:#18233f; --ink:#f4efe0; --muted:#a3adc4; --line:#2c3a5e;
+    --accent:#f2b705; --accent-ink:#14213d; --ok:#5ed39a; --warn:#ffb457; --bad:#ff8a80; --chip:#22305a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1830; --surface:#18233f; --ink:#f4efe0; --muted:#a3adc4; --line:#2c3a5e;
+  --accent:#f2b705; --accent-ink:#14213d; --ok:#5ed39a; --warn:#ffb457; --bad:#ff8a80; --chip:#22305a;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Trebuchet MS","Segoe UI",system-ui,sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0 12px}
+.brand{font:800 26px/1 "Arial Black","Trebuchet MS",sans-serif;letter-spacing:-.02em}
+.brand span{background:var(--accent);color:var(--accent-ink);padding:0 6px;border-radius:6px;margin-left:2px}
+.tag{color:var(--muted);font-size:14px;margin:0 0 14px}
+#net{font-size:13px;padding:4px 10px;border-radius:99px;background:var(--chip);white-space:nowrap}
+#net.off{background:var(--warn);color:#fff}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+h2{font-size:18px;margin:0 0 10px}
+.trip{display:grid;grid-template-columns:1fr;gap:10px}
+.trip label{font-size:13px;color:var(--muted);display:block;margin-bottom:2px}
+select{width:100%;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.tabs{display:flex;gap:6px;margin:14px 0 12px;overflow-x:auto}
+.tab{flex:1 0 auto;font:inherit;font-weight:700;padding:9px 12px;border-radius:10px;border:2px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.sum{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.total{font:800 34px/1 "Arial Black",sans-serif}
+.mins{color:var(--muted)}
+ol.steps{list-style:none;margin:0;padding:0}
+.step{display:grid;grid-template-columns:76px 1fr auto;gap:10px;padding:10px 0;border-top:1px dashed var(--line)}
+.mode{font-weight:700;font-size:13px;background:var(--chip);border-radius:8px;padding:4px 6px;text-align:center;align-self:start}
+.step small{display:block;color:var(--muted)}
+.fare{font-weight:800}
+.save{width:100%;margin-top:12px;font:inherit;font-weight:800;padding:12px;border-radius:12px;border:0;background:var(--ink);color:var(--bg);cursor:pointer}
+.kill{font-size:13px;color:var(--muted);margin:8px 0 0}
+.reports{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.rbtn{font:inherit;font-weight:700;padding:12px 8px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.rbtn:active{transform:scale(.97)}
+.feed{list-style:none;margin:0;padding:0}
+.item{padding:10px 0;border-top:1px dashed var(--line);display:flex;gap:10px;align-items:flex-start}
+.dot{width:12px;height:12px;border-radius:50%;margin-top:7px;flex:none}
+.item small{color:var(--muted)}
+.empty{color:var(--muted)}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.on{opacity:1}
+footer{color:var(--muted);font-size:12px;padding:0 0 24px}
+@media (min-width:520px){.trip{grid-template-columns:1fr 1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Biyahero<span>PH</span></div>
+    <div id="net">Online</div>
+  </header>
+  <p class="tag">Real-time commuter board. Alamin kung may jeep, baha, o mahabang pila bago ka bumiyahe.</p>
+
+  <section class="card" aria-labelledby="h-route">
+    <h2 id="h-route">Saan ka papunta?</h2>
+    <div class="trip">
+      <div><label for="from">Mula</label>
+        <select id="from"><option>LRT Monumento, Caloocan</option></select></div>
+      <div><label for="to">Papunta</label>
+        <select id="to"><option>SM North EDSA</option></select></div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Uri ng ruta" id="tabs"></div>
+    <div id="route" role="tabpanel"></div>
+    <button class="save" id="save">Save route offline</button>
+    <p class="kill">Walang data? Buksan ang naka-save na ruta at i-screenshot. Gumagana kahit offline.</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-live">
+    <h2 id="h-live">Live mula sa mga commuter</h2>
+    <div><label for="spot" style="font-size:13px;color:var(--muted)">Nasaan ka?</label>
+      <select id="spot" style="margin-bottom:10px"></select></div>
+    <div class="reports" id="reports"></div>
+    <ul class="feed" id="feed"></ul>
+  </section>
+
+  <footer>Mga halimbawang ruta at pamasahe ito para sa demo; i-check ang opisyal na singil. Ang mga report ay naka-save sa device mo lang.</footer>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const ROUTES = {
+  fastest: { label:"Pinakamabilis", mins:55, steps:[
+    {mode:"Jeep", fare:13, text:"Mula Caloocan hanggang Monumento", tip:"Bumaba sa tapat ng LRT"},
+    {mode:"LRT-1", fare:25, text:"Monumento → Roosevelt", tip:"Sumakay sa unang bagon, mas maluwag"},
+    {mode:"Modern Jeep", fare:15, text:"Roosevelt → SM North", tip:"Sa likod ng SM Hypermarket, hindi sa harap"}
+  ]},
+  cheapest: { label:"Pinakamura", mins:80, steps:[
+    {mode:"Jeep", fare:13, text:"Monumento → Balintawak", tip:"Hintayin sa may overpass"},
+    {mode:"Jeep", fare:13, text:"Balintawak → SM North", tip:"Sa likod ng SM Hypermarket, hindi sa harap"}
+  ]},
+  pwd: { label:"PWD / Senior", mins:70, steps:[
+    {mode:"Modern Jeep", fare:15, text:"Caloocan → Monumento", tip:"May rampa at aircon"},
+    {mode:"LRT-1", fare:25, text:"Monumento → Roosevelt", tip:"May elevator at priority lane"},
+    {mode:"Modern Jeep", fare:15, text:"Roosevelt → SM North", tip:"Ibaba sa mismong mall entrance"}
+  ]}
+};
+const SPOTS = ["LRT Monumento","A. Bonifacio Ave.","Balintawak","Roosevelt","SM North EDSA"];
+const REPORTS = [
+  {key:"pila", label:"Mahaba ang pila", color:"var(--warn)"},
+  {key:"baha", label:"May baha", color:"var(--bad)"},
+  {key:"wala", label:"Walang jeep", color:"var(--bad)"},
+  {key:"ok", label:"Maluwag, okay", color:"var(--ok)"}
+];
+const $ = id => document.getElementById(id);
+let current = "fastest";
+
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("on");clearTimeout(toast.id);toast.id=setTimeout(()=>t.classList.remove("on"),2200)}
+
+function renderRoute(){
+  const r = ROUTES[current];
+  const total = r.steps.reduce((s,x)=>s+x.fare,0);
+  $("route").innerHTML =
+    `<div class="sum"><div class="total">₱${total}</div><div class="mins">mga ${r.mins} min</div></div>` +
+    `<ol class="steps">` + r.steps.map(s =>
+      `<li class="step"><div class="mode">${s.mode}</div><div>${s.text}<small>${s.tip}</small></div><div class="fare">₱${s.fare}</div></li>`
+    ).join("") + `</ol>`;
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.k===current));
+}
+$("tabs").innerHTML = Object.entries(ROUTES).map(([k,r]) => `<button class="tab" role="tab" data-k="${k}">${r.label}</button>`).join("");
+$("tabs").addEventListener("click", e => { const k=e.target.dataset.k; if(k){current=k;renderRoute()} });
+
+$("save").addEventListener("click", () => {
+  const r = ROUTES[current];
+  try{ localStorage.setItem("biyahero.saved", JSON.stringify({key:current,at:Date.now()})); toast("Naka-save: "+r.label) }
+  catch(e){ toast("Hindi ma-save sa device na ito") }
+});
+try{ const s=JSON.parse(localStorage.getItem("biyahero.saved")||"null"); if(s&&ROUTES[s.key]) current=s.key }catch(e){}
+
+// Live reports
+$("spot").innerHTML = SPOTS.map(s=>`<option>${s}</option>`).join("");
+$("reports").innerHTML = REPORTS.map(r=>`<button class="rbtn" data-k="${r.key}">${r.label}</button>`).join("");
+const now = Date.now();
+let feed = [
+  {key:"pila", spot:"LRT Monumento", at:now-4*60e3, note:"20 min na pila"},
+  {key:"baha", spot:"A. Bonifacio Ave.", at:now-9*60e3, note:"Iwas muna"},
+  {key:"ok", spot:"Roosevelt", at:now-15*60e3, note:""}
+];
+try{ const saved=JSON.parse(localStorage.getItem("biyahero.feed")||"[]"); feed=saved.concat(feed) }catch(e){}
+
+function ago(t){const m=Math.max(0,Math.round((Date.now()-t)/60e3));return m<1?"ngayon lang":m<60?m+" min ang nakalipas":Math.round(m/60)+" oras ang nakalipas"}
+function renderFeed(){
+  const el=$("feed");
+  if(!feed.length){el.innerHTML='<li class="empty">Wala pang report. Ikaw ang mauna.</li>';return}
+  el.innerHTML = feed.slice(0,12).map(f=>{
+    const d=REPORTS.find(r=>r.key===f.key);
+    return `<li class="item"><span class="dot" style="background:${d.color}"></span><div><b>${d.label}</b> sa ${f.spot}${f.note?" – "+f.note:""}<br><small>${ago(f.at)}</small></div></li>`;
+  }).join("");
+}
+$("reports").addEventListener("click", e=>{
+  const k=e.target.dataset.k; if(!k) return;
+  const item={key:k,spot:$("spot").value,at:Date.now(),note:""};
+  feed.unshift(item);
+  try{ const mine=JSON.parse(localStorage.getItem("biyahero.feed")||"[]"); mine.unshift(item); localStorage.setItem("biyahero.feed",JSON.stringify(mine.slice(0,20))) }catch(err){}
+  renderFeed(); toast("Salamat sa update!");
+});
+
+function net(){const n=$("net");n.textContent=navigator.onLine?"Online":"Offline";n.className=navigator.onLine?"":"off"}
+addEventListener("online",net);addEventListener("offline",net);
+
+net(); renderRoute(); renderFeed(); setInterval(renderFeed,60000);
+</script>
+</body>
+</html>
